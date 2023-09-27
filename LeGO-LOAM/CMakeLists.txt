@@ -61,3 +61,11 @@ target_link_libraries(imageProjection ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 # add_executable(transformFusion src/transformFusion.cpp)
 # ament_target_dependencies(transformFusion ${dependencies})
 # target_link_libraries(transformFusion  ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
+
+install(TARGETS
+  imageProjection
+  DESTINATION lib/${PROJECT_NAME})
+
+ament_export_dependencies(rosidl_default_runtime)
+
+ament_package()

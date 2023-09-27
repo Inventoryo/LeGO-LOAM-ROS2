@@ -38,8 +38,6 @@ class FeatureAssociation{
 
 private:
 
-	ros::NodeHandle nh;
-
     ros::Subscriber subLaserCloud;
     ros::Subscriber subLaserCloudInfo;
     ros::Subscriber subOutlierCloud;
@@ -503,23 +501,23 @@ public:
 
             float ori = -atan2(point.x, point.z);
             if (!halfPassed) {
-                if (ori < segInfo.startOrientation - M_PI / 2)
+                if (ori < segInfo.start_orientation - M_PI / 2)
                     ori += 2 * M_PI;
-                else if (ori > segInfo.startOrientation + M_PI * 3 / 2)
+                else if (ori > segInfo.start_orientation + M_PI * 3 / 2)
                     ori -= 2 * M_PI;
 
-                if (ori - segInfo.startOrientation > M_PI)
+                if (ori - segInfo.start_orientation > M_PI)
                     halfPassed = true;
             } else {
                 ori += 2 * M_PI;
 
-                if (ori < segInfo.endOrientation - M_PI * 3 / 2)
+                if (ori < segInfo.end_orientation - M_PI * 3 / 2)
                     ori += 2 * M_PI;
-                else if (ori > segInfo.endOrientation + M_PI / 2)
+                else if (ori > segInfo.end_orientation + M_PI / 2)
                     ori -= 2 * M_PI;
             }
 
-            float relTime = (ori - segInfo.startOrientation) / segInfo.orientationDiff;
+            float relTime = (ori - segInfo.start_orientation) / segInfo.orientation_diff;
             point.intensity = int(segmentedCloud->points[i].intensity) + scanPeriod * relTime;
 
             if (imuPointerLast >= 0) {
@@ -623,12 +621,12 @@ public:
         int cloudSize = segmentedCloud->points.size();
         for (int i = 5; i < cloudSize - 5; i++) {
 
-            float diffRange = segInfo.segmentedCloudRange[i-5] + segInfo.segmentedCloudRange[i-4]
-                            + segInfo.segmentedCloudRange[i-3] + segInfo.segmentedCloudRange[i-2]
-                            + segInfo.segmentedCloudRange[i-1] - segInfo.segmentedCloudRange[i] * 10
-                            + segInfo.segmentedCloudRange[i+1] + segInfo.segmentedCloudRange[i+2]
-                            + segInfo.segmentedCloudRange[i+3] + segInfo.segmentedCloudRange[i+4]
-                            + segInfo.segmentedCloudRange[i+5];            
+            float diffRange = segInfo.segmented_cloud_range[i-5] + segInfo.segmented_cloud_range[i-4]
+                            + segInfo.segmented_cloud_range[i-3] + segInfo.segmented_cloud_range[i-2]
+                            + segInfo.segmented_cloud_range[i-1] - segInfo.segmented_cloud_range[i] * 10
+                            + segInfo.segmented_cloud_range[i+1] + segInfo.segmented_cloud_range[i+2]
+                            + segInfo.segmented_cloud_range[i+3] + segInfo.segmented_cloud_range[i+4]
+                            + segInfo.segmented_cloud_range[i+5];            
 
             cloudCurvature[i] = diffRange*diffRange;
 
@@ -646,9 +644,9 @@ public:
 
         for (int i = 5; i < cloudSize - 6; ++i){
 
-            float depth1 = segInfo.segmentedCloudRange[i];
-            float depth2 = segInfo.segmentedCloudRange[i+1];
-            int columnDiff = std::abs(int(segInfo.segmentedCloudColInd[i+1] - segInfo.segmentedCloudColInd[i]));
+            float depth1 = segInfo.segmented_cloud_range[i];
+            float depth2 = segInfo.segmented_cloud_range[i+1];
+            int columnDiff = std::abs(int(segInfo.segmented_cloud_colind[i+1] - segInfo.segmented_cloud_colind[i]));
 
             if (columnDiff < 10){
 
@@ -669,10 +667,10 @@ public:
                 }
             }
 
-            float diff1 = std::abs(float(segInfo.segmentedCloudRange[i-1] - segInfo.segmentedCloudRange[i]));
-            float diff2 = std::abs(float(segInfo.segmentedCloudRange[i+1] - segInfo.segmentedCloudRange[i]));
+            float diff1 = std::abs(float(segInfo.segmented_cloud_range[i-1] - segInfo.segmented_cloud_range[i]));
+            float diff2 = std::abs(float(segInfo.segmented_cloud_range[i+1] - segInfo.segmented_cloud_range[i]));
 
-            if (diff1 > 0.02 * segInfo.segmentedCloudRange[i] && diff2 > 0.02 * segInfo.segmentedCloudRange[i])
+            if (diff1 > 0.02 * segInfo.segmented_cloud_range[i] && diff2 > 0.02 * segInfo.segmented_cloud_range[i])
                 cloudNeighborPicked[i] = 1;
         }
     }
@@ -690,8 +688,8 @@ public:
 
             for (int j = 0; j < 6; j++) {
 
-                int sp = (segInfo.startRingIndex[i] * (6 - j)    + segInfo.endRingIndex[i] * j) / 6;
-                int ep = (segInfo.startRingIndex[i] * (5 - j)    + segInfo.endRingIndex[i] * (j + 1)) / 6 - 1;
+                int sp = (segInfo.start_ring_index[i] * (6 - j)    + segInfo.end_ring_index[i] * j) / 6;
+                int ep = (segInfo.start_ring_index[i] * (5 - j)    + segInfo.end_ring_index[i] * (j + 1)) / 6 - 1;
 
                 if (sp >= ep)
                     continue;
@@ -703,7 +701,7 @@ public:
                     int ind = cloudSmoothness[k].ind;
                     if (cloudNeighborPicked[ind] == 0 &&
                         cloudCurvature[ind] > edgeThreshold &&
-                        segInfo.segmentedCloudGroundFlag[ind] == false) {
+                        segInfo.segmented_cloud_ground_flag[ind] == false) {
                     
                         largestPickedNum++;
                         if (largestPickedNum <= 2) {
@@ -719,13 +717,13 @@ public:
 
                         cloudNeighborPicked[ind] = 1;
                         for (int l = 1; l <= 5; l++) {
-                            int columnDiff = std::abs(int(segInfo.segmentedCloudColInd[ind + l] - segInfo.segmentedCloudColInd[ind + l - 1]));
+                            int columnDiff = std::abs(int(segInfo.segmented_cloud_colind[ind + l] - segInfo.segmented_cloud_colind[ind + l - 1]));
                             if (columnDiff > 10)
                                 break;
                             cloudNeighborPicked[ind + l] = 1;
                         }
                         for (int l = -1; l >= -5; l--) {
-                            int columnDiff = std::abs(int(segInfo.segmentedCloudColInd[ind + l] - segInfo.segmentedCloudColInd[ind + l + 1]));
+                            int columnDiff = std::abs(int(segInfo.segmented_cloud_colind[ind + l] - segInfo.segmented_cloud_colind[ind + l + 1]));
                             if (columnDiff > 10)
                                 break;
                             cloudNeighborPicked[ind + l] = 1;
@@ -738,7 +736,7 @@ public:
                     int ind = cloudSmoothness[k].ind;
                     if (cloudNeighborPicked[ind] == 0 &&
                         cloudCurvature[ind] < surfThreshold &&
-                        segInfo.segmentedCloudGroundFlag[ind] == true) {
+                        segInfo.segmented_cloud_ground_flag[ind] == true) {
 
                         cloudLabel[ind] = -1;
                         surfPointsFlat->push_back(segmentedCloud->points[ind]);
@@ -751,7 +749,7 @@ public:
                         cloudNeighborPicked[ind] = 1;
                         for (int l = 1; l <= 5; l++) {
 
-                            int columnDiff = std::abs(int(segInfo.segmentedCloudColInd[ind + l] - segInfo.segmentedCloudColInd[ind + l - 1]));
+                            int columnDiff = std::abs(int(segInfo.segmented_cloud_colind[ind + l] - segInfo.segmented_cloud_colind[ind + l - 1]));
                             if (columnDiff > 10)
                                 break;
 
@@ -759,7 +757,7 @@ public:
                         }
                         for (int l = -1; l >= -5; l--) {
 
-                            int columnDiff = std::abs(int(segInfo.segmentedCloudColInd[ind + l] - segInfo.segmentedCloudColInd[ind + l + 1]));
+                            int columnDiff = std::abs(int(segInfo.segmented_cloud_colind[ind + l] - segInfo.segmented_cloud_colind[ind + l + 1]));
                             if (columnDiff > 10)
                                 break;
 

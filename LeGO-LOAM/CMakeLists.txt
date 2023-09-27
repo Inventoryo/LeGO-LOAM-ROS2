@@ -1,18 +1,25 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10.0)
 project(lego_loam)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
+find_package(tf2  REQUIRED)
+find_package(tf2_ros  REQUIRED)
+find_package(rclcpp   REQUIRED)
+find_package(cv_bridge  REQUIRED)
+find_package(image_transport  REQUIRED)
+find_package(pcl_ros  REQUIRED)
+find_package(std_msgs  REQUIRED)
+find_package(sensor_msgs  REQUIRED)
+find_package(geometry_msgs  REQUIRED)
+find_package(nav_msgs  REQUIRED)
+find_package(cloud_msgs  REQUIRED)
 
-find_package(catkin REQUIRED COMPONENTS
-  tf
-  roscpp
-  rospy
+set(dependencies
+  tf2
+  tf2_ros
+  rclcpp
   cv_bridge
   image_transport
-
   pcl_ros
-  pcl_conversions
-
   std_msgs
   sensor_msgs
   geometry_msgs
@@ -23,16 +30,10 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(GTSAM REQUIRED QUIET)
 find_package(PCL REQUIRED QUIET)
 find_package(OpenCV REQUIRED QUIET)
-
-catkin_package(
-  INCLUDE_DIRS include
-  CATKIN_DEPENDS cloud_msgs
-  DEPENDS PCL
-)
+find_package(VTK REQUIRED QUIET)
 
 include_directories(
 	include
-	${catkin_INCLUDE_DIRS}
 	${PCL_INCLUDE_DIRS}
 	${OpenCV_INCLUDE_DIRS}
 	${GTSAM_INCLUDE_DIR}
@@ -46,15 +47,17 @@ link_directories(
 )
 
 add_executable(imageProjection src/imageProjection.cpp)
-add_dependencies(imageProjection ${catkin_EXPORTED_TARGETS} cloud_msgs_gencpp)
-target_link_libraries(imageProjection ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
+ament_target_dependencies(imageProjection ${dependencies})
+target_link_libraries(imageProjection ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 
-add_executable(featureAssociation src/featureAssociation.cpp)
-add_dependencies(featureAssociation ${catkin_EXPORTED_TARGETS} cloud_msgs_gencpp)
-target_link_libraries(featureAssociation ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
+# add_executable(featureAssociation src/featureAssociation.cpp)
+# ament_target_dependencies(featureAssociation ${dependencies} )
+# target_link_libraries(featureAssociation  ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 
-add_executable(mapOptmization src/mapOptmization.cpp)
-target_link_libraries(mapOptmization ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} gtsam)
+# add_executable(mapOptmization src/mapOptmization.cpp)
+# ament_target_dependencies(mapOptmization ${dependencies})
+# target_link_libraries(mapOptmization ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} gtsam)
 
-add_executable(transformFusion src/transformFusion.cpp)
-target_link_libraries(transformFusion ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
+# add_executable(transformFusion src/transformFusion.cpp)
+# ament_target_dependencies(transformFusion ${dependencies})
+# target_link_libraries(transformFusion  ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})

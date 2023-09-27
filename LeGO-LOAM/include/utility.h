@@ -1,30 +1,40 @@
 #ifndef _UTILITY_LIDAR_ODOMETRY_H_
 #define _UTILITY_LIDAR_ODOMETRY_H_
 
+// 从ROS 1的ros/ros.h迁移到ROS 2的rclcpp/rclcpp.hpp
+#include "rclcpp/rclcpp.hpp"
 
-#include <ros/ros.h>
+// 从sensor_msgs/Imu.h迁移到sensor_msgs/msg/imu.hpp
+#include "sensor_msgs/msg/imu.hpp"
 
-#include <sensor_msgs/Imu.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <nav_msgs/Odometry.h>
+// 从sensor_msgs/PointCloud2.h迁移到sensor_msgs/msg/point_cloud2.hpp
+#include "sensor_msgs/msg/point_cloud2.hpp"
 
-#include "cloud_msgs/cloud_info.h"
+// 从nav_msgs/Odometry.h迁移到nav_msgs/msg/odometry.hpp
+#include "nav_msgs/msg/odometry.hpp"
 
-#include <opencv/cv.h>
+// 从cloud_msgs/cloud_info.h迁移到你的自定义消息头文件路径
+#include "cloud_msgs/msg/cloud_info.hpp"
 
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl/range_image/range_image.h>
-#include <pcl/filters/filter.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/common/common.h>
-#include <pcl/registration/icp.h>
+// 从OpenCV的头文件迁移到OpenCV的ROS 2接口
+#include <opencv2/opencv.hpp>
 
-#include <tf/transform_broadcaster.h>
-#include <tf/transform_datatypes.h>
+// PCL相关头文件需要迁移到对应ROS 2的包
+#include "pcl/point_cloud.h"
+#include "pcl/point_types.h"
+#include "pcl_conversions/pcl_conversions.h"
+#include "pcl/range_image/range_image.h"
+#include "pcl/filters/filter.h"
+#include "pcl/filters/voxel_grid.h"
+#include "pcl/kdtree/kdtree_flann.h"
+#include "pcl/common/common.h"
+#include "pcl/registration/icp.h"
+
+// 从tf/transform_broadcaster.h迁移到tf2_ros/transform_broadcaster.h
+#include "tf2_ros/transform_broadcaster.h"
+
+// 从tf/transform_datatypes.h迁移到tf2/transform_datatypes.h
+#include "tf2/transform_datatypes.h"
  
 #include <vector>
 #include <cmath>

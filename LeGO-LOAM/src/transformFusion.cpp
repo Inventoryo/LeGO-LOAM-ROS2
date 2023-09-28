@@ -32,26 +32,25 @@
 
 #include "utility.h"
 
-class TransformFusion{
+class TransformFusion : public rclcpp::Node {
 
 private:
 
-    ros::NodeHandle nh;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubLaserOdometry2;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subLaserOdometry;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subOdomAftMapped;
 
-    ros::Publisher pubLaserOdometry2;
-    ros::Subscriber subLaserOdometry;
-    ros::Subscriber subOdomAftMapped;
-  
+    // tf2 TransformBroadcaster
+    nav_msgs::msg::Odometry laserOdometry2;
 
-    nav_msgs::Odometry laserOdometry2;
-    tf::StampedTransform laserOdometryTrans2;
-    tf::TransformBroadcaster tfBroadcaster2;
+    geometry_msgs::msg::TransformStamped laserOdometryTrans2;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster2;
 
-    tf::StampedTransform map_2_camera_init_Trans;
-    tf::TransformBroadcaster tfBroadcasterMap2CameraInit;
+    geometry_msgs::msg::TransformStamped map_2_camera_init_Trans;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcasterMap2CameraInit;
 
-    tf::StampedTransform camera_2_base_link_Trans;
-    tf::TransformBroadcaster tfBroadcasterCamera2Baselink;
+    geometry_msgs::msg::TransformStamped camera_2_base_link_Trans;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcasterCamera2Baselink;
 
     float transformSum[6];
     float transformIncre[6];
@@ -59,27 +58,32 @@ private:
     float transformBefMapped[6];
     float transformAftMapped[6];
 
-    std_msgs::Header currentHeader;
+    std_msgs::msg::Header currentHeader;
 
 public:
 
-    TransformFusion(){
+    TransformFusion() : Node("transform_fusion_node") {
 
-        pubLaserOdometry2 = nh.advertise<nav_msgs::Odometry> ("/integrated_to_init", 5);
-        subLaserOdometry = nh.subscribe<nav_msgs::Odometry>("/laser_odom_to_init", 5, &TransformFusion::laserOdometryHandler, this);
-        subOdomAftMapped = nh.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 5, &TransformFusion::odomAftMappedHandler, this);
+        pubLaserOdometry2 = this->create_publisher<nav_msgs::msg::Odometry>("/integrated_to_init", 5);
+        subLaserOdometry = this->create_subscription<nav_msgs::msg::Odometry>(
+            "/laser_odom_to_init", 5, std::bind(&TransformFusion::laserOdometryHandler, this, std::placeholders::_1));
+        subOdomAftMapped = this->create_subscription<nav_msgs::msg::Odometry>(
+            "/aft_mapped_to_init", 5, std::bind(&TransformFusion::odomAftMappedHandler, this, std::placeholders::_1));
 
         laserOdometry2.header.frame_id = "/camera_init";
         laserOdometry2.child_frame_id = "/camera";
 
-        laserOdometryTrans2.frame_id_ = "/camera_init";
-        laserOdometryTrans2.child_frame_id_ = "/camera";
+        laserOdometryTrans2.header.frame_id = "/camera_init";
+        laserOdometryTrans2.child_frame_id = "/camera";
+        tfBroadcaster2 = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
-        map_2_camera_init_Trans.frame_id_ = "/map";
-        map_2_camera_init_Trans.child_frame_id_ = "/camera_init";
+        map_2_camera_init_Trans.header.frame_id = "/map";
+        map_2_camera_init_Trans.child_frame_id = "/camera_init";
+        tfBroadcasterMap2CameraInit = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
-        camera_2_base_link_Trans.frame_id_ = "/camera";
-        camera_2_base_link_Trans.child_frame_id_ = "/base_link";
+        camera_2_base_link_Trans.header.frame_id = "/camera";
+        camera_2_base_link_Trans.child_frame_id = "/base_link";
+        tfBroadcasterCamera2Baselink = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
         for (int i = 0; i < 6; ++i)
         {
@@ -178,13 +182,16 @@ public:
                            - (-sin(transformMapped[1]) * x2 + cos(transformMapped[1]) * z2);
     }
 
-    void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry)
+    void laserOdometryHandler(const nav_msgs::msg::Odometry::SharedPtr laserOdometry)
     {
         currentHeader = laserOdometry->header;
 
+        // double roll, pitch, yaw;
+        // geometry_msgs::Quaternion geoQuat = laserOdometry->pose.pose.orientation;
+        // tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
         double roll, pitch, yaw;
-        geometry_msgs::Quaternion geoQuat = laserOdometry->pose.pose.orientation;
-        tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
+        tf2::Quaternion quat(laserOdometry->pose.pose.orientation.z, -laserOdometry->pose.pose.orientation.x, -laserOdometry->pose.pose.orientation.y, laserOdometry->pose.pose.orientation.w);
+        tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
 
         transformSum[0] = -pitch;
         transformSum[1] = -yaw;
@@ -196,30 +203,41 @@ public:
 
         transformAssociateToMap();
 
-        geoQuat = tf::createQuaternionMsgFromRollPitchYaw
-                  (transformMapped[2], -transformMapped[0], -transformMapped[1]);
+        // geoQuat = tf::createQuaternionMsgFromRollPitchYaw
+        //           (transformMapped[2], -transformMapped[0], -transformMapped[1]);
+        quat.setRPY(transformSum[2], -transformSum[0], -transformSum[1]);
 
         laserOdometry2.header.stamp = laserOdometry->header.stamp;
-        laserOdometry2.pose.pose.orientation.x = -geoQuat.y;
-        laserOdometry2.pose.pose.orientation.y = -geoQuat.z;
-        laserOdometry2.pose.pose.orientation.z = geoQuat.x;
-        laserOdometry2.pose.pose.orientation.w = geoQuat.w;
+        laserOdometry2.pose.pose.orientation.x = -quat.getY();
+        laserOdometry2.pose.pose.orientation.y = -quat.getZ();
+        laserOdometry2.pose.pose.orientation.z =  quat.getX();
+        laserOdometry2.pose.pose.orientation.w =  quat.getW();
         laserOdometry2.pose.pose.position.x = transformMapped[3];
         laserOdometry2.pose.pose.position.y = transformMapped[4];
         laserOdometry2.pose.pose.position.z = transformMapped[5];
-        pubLaserOdometry2.publish(laserOdometry2);
+        pubLaserOdometry2->publish(laserOdometry2);
 
-        laserOdometryTrans2.stamp_ = laserOdometry->header.stamp;
-        laserOdometryTrans2.setRotation(tf::Quaternion(-geoQuat.y, -geoQuat.z, geoQuat.x, geoQuat.w));
-        laserOdometryTrans2.setOrigin(tf::Vector3(transformMapped[3], transformMapped[4], transformMapped[5]));
-        tfBroadcaster2.sendTransform(laserOdometryTrans2);
+        laserOdometryTrans2.header.stamp = laserOdometry->header.stamp;
+        laserOdometryTrans2.transform.rotation.x = -quat.getY();
+        laserOdometryTrans2.transform.rotation.y = -quat.getZ();
+        laserOdometryTrans2.transform.rotation.z = quat.getX();
+        laserOdometryTrans2.transform.rotation.w = quat.getW();
+        laserOdometryTrans2.transform.translation.x = transformSum[3];
+        laserOdometryTrans2.transform.translation.y = transformSum[4];
+        laserOdometryTrans2.transform.translation.z = transformSum[5];
+        // laserOdometryTrans2.setRotation(tf::Quaternion(-geoQuat.y, -geoQuat.z, geoQuat.x, geoQuat.w));
+        // laserOdometryTrans2.setOrigin(tf::Vector3(transformMapped[3], transformMapped[4], transformMapped[5]));
+        tfBroadcaster2->sendTransform(laserOdometryTrans2);
     }
 
-    void odomAftMappedHandler(const nav_msgs::Odometry::ConstPtr& odomAftMapped)
+    void odomAftMappedHandler(const nav_msgs::msg::Odometry::SharedPtr odomAftMapped)
     {
+        // double roll, pitch, yaw;
+        // geometry_msgs::Quaternion geoQuat = odomAftMapped->pose.pose.orientation;
+        // tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
         double roll, pitch, yaw;
-        geometry_msgs::Quaternion geoQuat = odomAftMapped->pose.pose.orientation;
-        tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
+        tf2::Quaternion quat(odomAftMapped->pose.pose.orientation.z, -odomAftMapped->pose.pose.orientation.x, -odomAftMapped->pose.pose.orientation.y, odomAftMapped->pose.pose.orientation.w);
+        tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
 
         transformAftMapped[0] = -pitch;
         transformAftMapped[1] = -yaw;
@@ -242,13 +260,8 @@ public:
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "lego_loam");
-    
-    TransformFusion TFusion;
-
-    ROS_INFO("\033[1;32m---->\033[0m Transform Fusion Started.");
-
-    ros::spin();
-
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<TransformFusion>());
+    rclcpp::shutdown();
     return 0;
 }

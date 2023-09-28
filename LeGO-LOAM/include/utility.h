@@ -32,6 +32,8 @@
 
 // 从tf/transform_broadcaster.h迁移到tf2_ros/transform_broadcaster.h
 #include "tf2_ros/transform_broadcaster.h"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2/LinearMath/Matrix3x3.h"
 
 // 从tf/transform_datatypes.h迁移到tf2/transform_datatypes.h
 #include "tf2/transform_datatypes.h"

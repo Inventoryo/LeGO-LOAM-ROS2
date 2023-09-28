@@ -46,7 +46,7 @@
 
 using namespace gtsam;
 
-class mapOptimization{
+class mapOptimization : public rclcpp::Node {
 
 private:
 
@@ -60,26 +60,24 @@ private:
     noiseModel::Diagonal::shared_ptr odometryNoise;
     noiseModel::Diagonal::shared_ptr constraintNoise;
 
-    ros::NodeHandle nh;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubKeyPoses;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubLaserCloudSurround;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubOdomAftMapped;
 
-    ros::Publisher pubLaserCloudSurround;
-    ros::Publisher pubOdomAftMapped;
-    ros::Publisher pubKeyPoses;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subLaserCloudCornerLast;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subLaserCloudSurfLast;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subOutlierCloudLast;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subLaserOdometry;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subImu;
 
-    ros::Publisher pubHistoryKeyFrames;
-    ros::Publisher pubIcpKeyFrames;
-    ros::Publisher pubRecentKeyFrames;
-    ros::Publisher pubRegisteredCloud;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubHistoryKeyFrames;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubIcpKeyFrames;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubRecentKeyFrames;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubRegisteredCloud;
 
-    ros::Subscriber subLaserCloudCornerLast;
-    ros::Subscriber subLaserCloudSurfLast;
-    ros::Subscriber subOutlierCloudLast;
-    ros::Subscriber subLaserOdometry;
-    ros::Subscriber subImu;
-
-    nav_msgs::Odometry odomAftMapped;
-    tf::StampedTransform aftMappedTrans;
-    tf::TransformBroadcaster tfBroadcaster;
+    nav_msgs::msg::Odometry odomAftMapped;
+    geometry_msgs::msg::TransformStamped aftMappedTrans;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
 
     vector<pcl::PointCloud<PointType>::Ptr> cornerCloudKeyFrames;
     vector<pcl::PointCloud<PointType>::Ptr> surfCloudKeyFrames;
@@ -220,31 +218,33 @@ private:
     float ctRoll, stRoll, ctPitch, stPitch, ctYaw, stYaw, tInX, tInY, tInZ;
 
 public:
-
-    
-
-    mapOptimization():
-        nh("~")
-    {
+    mapOptimization() : Node("map_optimization"){
     	ISAM2Params parameters;
 		parameters.relinearizeThreshold = 0.01;
 		parameters.relinearizeSkip = 1;
     	isam = new ISAM2(parameters);
 
-        pubKeyPoses = nh.advertise<sensor_msgs::PointCloud2>("/key_pose_origin", 2);
-        pubLaserCloudSurround = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surround", 2);
-        pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> ("/aft_mapped_to_init", 5);
+        pubKeyPoses = this->create_publisher<sensor_msgs::msg::PointCloud2>("/key_pose_origin", 2);
+        pubLaserCloudSurround = this->create_publisher<sensor_msgs::msg::PointCloud2>("/laser_cloud_surround", 2);
+        pubOdomAftMapped = this->create_publisher<nav_msgs::msg::Odometry>("/aft_mapped_to_init", 5);
 
-        subLaserCloudCornerLast = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_corner_last", 2, &mapOptimization::laserCloudCornerLastHandler, this);
-        subLaserCloudSurfLast = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_surf_last", 2, &mapOptimization::laserCloudSurfLastHandler, this);
-        subOutlierCloudLast = nh.subscribe<sensor_msgs::PointCloud2>("/outlier_cloud_last", 2, &mapOptimization::laserCloudOutlierLastHandler, this);
-        subLaserOdometry = nh.subscribe<nav_msgs::Odometry>("/laser_odom_to_init", 5, &mapOptimization::laserOdometryHandler, this);
-        subImu = nh.subscribe<sensor_msgs::Imu> (imuTopic, 50, &mapOptimization::imuHandler, this);
+        subLaserCloudCornerLast = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            "/laser_cloud_corner_last", 2, std::bind(&mapOptimization::laserCloudCornerLastHandler, this, std::placeholders::_1));
+        subLaserCloudSurfLast = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            "/laser_cloud_surf_last", 2, std::bind(&mapOptimization::laserCloudSurfLastHandler, this, std::placeholders::_1));
+        subOutlierCloudLast = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            "/outlier_cloud_last", 2, std::bind(&mapOptimization::laserCloudOutlierLastHandler, this, std::placeholders::_1));
+        subLaserOdometry = this->create_subscription<nav_msgs::msg::Odometry>(
+            "/laser_odom_to_init", 5, std::bind(&mapOptimization::laserOdometryHandler, this, std::placeholders::_1));
+        subImu = this->create_subscription<sensor_msgs::msg::Imu>(
+            imuTopic, 50, std::bind(&mapOptimization::imuHandler, this, std::placeholders::_1));
 
-        pubHistoryKeyFrames = nh.advertise<sensor_msgs::PointCloud2>("/history_cloud", 2);
-        pubIcpKeyFrames = nh.advertise<sensor_msgs::PointCloud2>("/corrected_cloud", 2);
-        pubRecentKeyFrames = nh.advertise<sensor_msgs::PointCloud2>("/recent_cloud", 2);
-        pubRegisteredCloud = nh.advertise<sensor_msgs::PointCloud2>("/registered_cloud", 2);
+        pubHistoryKeyFrames = this->create_publisher<sensor_msgs::msg::PointCloud2>("/history_cloud", 2);
+        pubIcpKeyFrames = this->create_publisher<sensor_msgs::msg::PointCloud2>("/corrected_cloud", 2);
+        pubRecentKeyFrames = this->create_publisher<sensor_msgs::msg::PointCloud2>("/recent_cloud", 2);
+        pubRegisteredCloud = this->create_publisher<sensor_msgs::msg::PointCloud2>("/registered_cloud", 2);
+
+        tfBroadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
         downSizeFilterCorner.setLeafSize(0.2, 0.2, 0.2);
         downSizeFilterSurf.setLeafSize(0.4, 0.4, 0.4);
@@ -259,8 +259,8 @@ public:
         odomAftMapped.header.frame_id = "/camera_init";
         odomAftMapped.child_frame_id = "/aft_mapped";
 
-        aftMappedTrans.frame_id_ = "/camera_init";
-        aftMappedTrans.child_frame_id_ = "/aft_mapped";
+        aftMappedTrans.header.frame_id = "/camera_init";
+        aftMappedTrans.child_frame_id = "/aft_mapped";
 
         allocateMemory();
     }
@@ -605,32 +605,32 @@ public:
         return cloudOut;
     }
 
-    void laserCloudOutlierLastHandler(const sensor_msgs::PointCloud2ConstPtr& msg){
-        timeLaserCloudOutlierLast = msg->header.stamp.toSec();
+    void laserCloudOutlierLastHandler(const sensor_msgs::msg::PointCloud2::SharedPtr msg){
+        timeLaserCloudOutlierLast = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         laserCloudOutlierLast->clear();
         pcl::fromROSMsg(*msg, *laserCloudOutlierLast);
         newLaserCloudOutlierLast = true;
     }
 
-    void laserCloudCornerLastHandler(const sensor_msgs::PointCloud2ConstPtr& msg){
-        timeLaserCloudCornerLast = msg->header.stamp.toSec();
+    void laserCloudCornerLastHandler(const sensor_msgs::msg::PointCloud2::SharedPtr msg){
+        timeLaserCloudCornerLast = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         laserCloudCornerLast->clear();
         pcl::fromROSMsg(*msg, *laserCloudCornerLast);
         newLaserCloudCornerLast = true;
     }
 
-    void laserCloudSurfLastHandler(const sensor_msgs::PointCloud2ConstPtr& msg){
-        timeLaserCloudSurfLast = msg->header.stamp.toSec();
+    void laserCloudSurfLastHandler(const sensor_msgs::msg::PointCloud2::SharedPtr msg){
+        timeLaserCloudSurfLast = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         laserCloudSurfLast->clear();
         pcl::fromROSMsg(*msg, *laserCloudSurfLast);
         newLaserCloudSurfLast = true;
     }
 
-    void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry){
-        timeLaserOdometry = laserOdometry->header.stamp.toSec();
+    void laserOdometryHandler(const nav_msgs::msg::Odometry::SharedPtr laserOdometry){
+        timeLaserOdometry = laserOdometry->header.stamp.sec + laserOdometry->header.stamp.nanosec * 1e-9;
         double roll, pitch, yaw;
-        geometry_msgs::Quaternion geoQuat = laserOdometry->pose.pose.orientation;
-        tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
+        geometry_msgs::msg::Quaternion geoQuat = laserOdometry->pose.pose.orientation;
+        tf2::Matrix3x3(tf2::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
         transformSum[0] = -pitch;
         transformSum[1] = -yaw;
         transformSum[2] = roll;
@@ -640,27 +640,29 @@ public:
         newLaserOdometry = true;
     }
 
-    void imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn){
+    void imuHandler(const sensor_msgs::msg::Imu::SharedPtr imuIn){
         double roll, pitch, yaw;
-        tf::Quaternion orientation;
-        tf::quaternionMsgToTF(imuIn->orientation, orientation);
-        tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
+        tf2::Quaternion quat(imuIn->orientation.x, imuIn->orientation.y, imuIn->orientation.z, imuIn->orientation.w);
+        tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
         imuPointerLast = (imuPointerLast + 1) % imuQueLength;
-        imuTime[imuPointerLast] = imuIn->header.stamp.toSec();
+        imuTime[imuPointerLast] = imuIn->header.stamp.sec + imuIn->header.stamp.nanosec * 1e-9;
         imuRoll[imuPointerLast] = roll;
         imuPitch[imuPointerLast] = pitch;
     }
 
     void publishTF(){
 
-        geometry_msgs::Quaternion geoQuat = tf::createQuaternionMsgFromRollPitchYaw
-                                  (transformAftMapped[2], -transformAftMapped[0], -transformAftMapped[1]);
+        // geometry_msgs::Quaternion geoQuat = tf::createQuaternionMsgFromRollPitchYaw
+        //                           (transformAftMapped[2], -transformAftMapped[0], -transformAftMapped[1]);
 
-        odomAftMapped.header.stamp = ros::Time().fromSec(timeLaserOdometry);
-        odomAftMapped.pose.pose.orientation.x = -geoQuat.y;
-        odomAftMapped.pose.pose.orientation.y = -geoQuat.z;
-        odomAftMapped.pose.pose.orientation.z = geoQuat.x;
-        odomAftMapped.pose.pose.orientation.w = geoQuat.w;
+        tf2::Quaternion quat;
+        quat.setRPY(transformSum[2], -transformSum[0], -transformSum[1]);
+
+        odomAftMapped.header.stamp = rclcpp::Time(static_cast<int64_t>(timeLaserOdometry), static_cast<int64_t>((timeLaserOdometry - static_cast<int64_t>(timeLaserOdometry)) * 1e9));
+        odomAftMapped.pose.pose.orientation.x = -quat.getY();
+        odomAftMapped.pose.pose.orientation.y = -quat.getZ();
+        odomAftMapped.pose.pose.orientation.z =  quat.getX();
+        odomAftMapped.pose.pose.orientation.w =  quat.getW();
         odomAftMapped.pose.pose.position.x = transformAftMapped[3];
         odomAftMapped.pose.pose.position.y = transformAftMapped[4];
         odomAftMapped.pose.pose.position.z = transformAftMapped[5];
@@ -670,12 +672,20 @@ public:
         odomAftMapped.twist.twist.linear.x = transformBefMapped[3];
         odomAftMapped.twist.twist.linear.y = transformBefMapped[4];
         odomAftMapped.twist.twist.linear.z = transformBefMapped[5];
-        pubOdomAftMapped.publish(odomAftMapped);
+        pubOdomAftMapped->publish(odomAftMapped);
 
-        aftMappedTrans.stamp_ = ros::Time().fromSec(timeLaserOdometry);
-        aftMappedTrans.setRotation(tf::Quaternion(-geoQuat.y, -geoQuat.z, geoQuat.x, geoQuat.w));
-        aftMappedTrans.setOrigin(tf::Vector3(transformAftMapped[3], transformAftMapped[4], transformAftMapped[5]));
-        tfBroadcaster.sendTransform(aftMappedTrans);
+        aftMappedTrans.header.stamp = rclcpp::Time(static_cast<int64_t>(timeLaserOdometry), static_cast<int64_t>((timeLaserOdometry - static_cast<int64_t>(timeLaserOdometry)) * 1e9));
+        // aftMappedTrans.setRotation(tf2::Quaternion(-geoQuat.y, -geoQuat.z, geoQuat.x, geoQuat.w));
+        // aftMappedTrans.setOrigin(tf2::Vector3(transformAftMapped[3], transformAftMapped[4], transformAftMapped[5]));
+        aftMappedTrans.transform.rotation.x = -quat.getY();
+        aftMappedTrans.transform.rotation.y = -quat.getZ();
+        aftMappedTrans.transform.rotation.z = quat.getX();
+        aftMappedTrans.transform.rotation.w = quat.getW();
+        aftMappedTrans.transform.translation.x = transformSum[3];
+        aftMappedTrans.transform.translation.y = transformSum[4];
+        aftMappedTrans.transform.translation.z = transformSum[5];
+
+        tfBroadcaster->sendTransform(aftMappedTrans);
     }
 
     PointTypePose trans2PointTypePose(float transformIn[]){
@@ -691,42 +701,46 @@ public:
 
     void publishKeyPosesAndFrames(){
 
-        if (pubKeyPoses.getNumSubscribers() != 0){
-            sensor_msgs::PointCloud2 cloudMsgTemp;
+        rclcpp::Time timeLaserOdometry_rclpp = rclcpp::Time(static_cast<int64_t>(timeLaserOdometry), static_cast<int64_t>((timeLaserOdometry - static_cast<int64_t>(timeLaserOdometry)) * 1e9));
+        if (pubKeyPoses->get_subscription_count() != 0){
+            sensor_msgs::msg::PointCloud2 cloudMsgTemp;
             pcl::toROSMsg(*cloudKeyPoses3D, cloudMsgTemp);
-            cloudMsgTemp.header.stamp = ros::Time().fromSec(timeLaserOdometry);
+            cloudMsgTemp.header.stamp = timeLaserOdometry_rclpp;
             cloudMsgTemp.header.frame_id = "/camera_init";
-            pubKeyPoses.publish(cloudMsgTemp);
+            pubKeyPoses->publish(cloudMsgTemp);
         }
 
-        if (pubRecentKeyFrames.getNumSubscribers() != 0){
-            sensor_msgs::PointCloud2 cloudMsgTemp;
+        if (pubRecentKeyFrames->get_subscription_count() != 0){
+            sensor_msgs::msg::PointCloud2 cloudMsgTemp;
             pcl::toROSMsg(*laserCloudSurfFromMapDS, cloudMsgTemp);
-            cloudMsgTemp.header.stamp = ros::Time().fromSec(timeLaserOdometry);
+            cloudMsgTemp.header.stamp = timeLaserOdometry_rclpp;
             cloudMsgTemp.header.frame_id = "/camera_init";
-            pubRecentKeyFrames.publish(cloudMsgTemp);
+            pubRecentKeyFrames->publish(cloudMsgTemp);
         }
 
-        if (pubRegisteredCloud.getNumSubscribers() != 0){
+        if (pubRegisteredCloud->get_subscription_count() != 0){
             pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
             PointTypePose thisPose6D = trans2PointTypePose(transformTobeMapped);
             *cloudOut += *transformPointCloud(laserCloudCornerLastDS,  &thisPose6D);
             *cloudOut += *transformPointCloud(laserCloudSurfTotalLast, &thisPose6D);
             
-            sensor_msgs::PointCloud2 cloudMsgTemp;
+            sensor_msgs::msg::PointCloud2 cloudMsgTemp;
             pcl::toROSMsg(*cloudOut, cloudMsgTemp);
-            cloudMsgTemp.header.stamp = ros::Time().fromSec(timeLaserOdometry);
+            cloudMsgTemp.header.stamp = timeLaserOdometry_rclpp;
             cloudMsgTemp.header.frame_id = "/camera_init";
-            pubRegisteredCloud.publish(cloudMsgTemp);
+            pubRegisteredCloud->publish(cloudMsgTemp);
         } 
     }
 
     void visualizeGlobalMapThread(){
-        ros::Rate rate(0.2);
-        while (ros::ok()){
-            rate.sleep();
-            publishGlobalMap();
-        }
+        // ros::Rate rate(0.2);
+        // while (ros::ok()){
+        //     rate.sleep();
+        //     publishGlobalMap();
+        // }
+
+        publishGlobalMap();
+
         // save final point cloud
         pcl::io::savePCDFileASCII(fileDirectory+"finalCloud.pcd", *globalMapKeyFramesDS);
 
@@ -757,7 +771,7 @@ public:
 
     void publishGlobalMap(){
 
-        if (pubLaserCloudSurround.getNumSubscribers() == 0)
+        if (pubLaserCloudSurround->get_subscription_count() == 0)
             return;
 
         if (cloudKeyPoses3D->points.empty() == true)
@@ -787,11 +801,11 @@ public:
         downSizeFilterGlobalMapKeyFrames.setInputCloud(globalMapKeyFrames);
         downSizeFilterGlobalMapKeyFrames.filter(*globalMapKeyFramesDS);
  
-        sensor_msgs::PointCloud2 cloudMsgTemp;
+        sensor_msgs::msg::PointCloud2 cloudMsgTemp;
         pcl::toROSMsg(*globalMapKeyFramesDS, cloudMsgTemp);
-        cloudMsgTemp.header.stamp = ros::Time().fromSec(timeLaserOdometry);
+        cloudMsgTemp.header.stamp = rclcpp::Time(static_cast<int64_t>(timeLaserOdometry), static_cast<int64_t>((timeLaserOdometry - static_cast<int64_t>(timeLaserOdometry)) * 1e9));
         cloudMsgTemp.header.frame_id = "/camera_init";
-        pubLaserCloudSurround.publish(cloudMsgTemp);  
+        pubLaserCloudSurround->publish(cloudMsgTemp);  
 
         globalMapKeyPoses->clear();
         globalMapKeyPosesDS->clear();
@@ -804,11 +818,11 @@ public:
         if (loopClosureEnableFlag == false)
             return;
 
-        ros::Rate rate(1);
-        while (ros::ok()){
-            rate.sleep();
-            performLoopClosure();
-        }
+        // ros::Rate rate(1);
+        // while (ros::ok()){
+        //     rate.sleep();
+        //     performLoopClosure();
+        // }
     }
 
     bool detectLoopClosure(){
@@ -860,12 +874,12 @@ public:
         downSizeFilterHistoryKeyFrames.setInputCloud(nearHistorySurfKeyFrameCloud);
         downSizeFilterHistoryKeyFrames.filter(*nearHistorySurfKeyFrameCloudDS);
         // publish history near key frames
-        if (pubHistoryKeyFrames.getNumSubscribers() != 0){
-            sensor_msgs::PointCloud2 cloudMsgTemp;
+        if (pubHistoryKeyFrames->get_subscription_count() != 0){
+            sensor_msgs::msg::PointCloud2 cloudMsgTemp;
             pcl::toROSMsg(*nearHistorySurfKeyFrameCloudDS, cloudMsgTemp);
-            cloudMsgTemp.header.stamp = ros::Time().fromSec(timeLaserOdometry);
+            cloudMsgTemp.header.stamp = rclcpp::Time(static_cast<int64_t>(timeLaserOdometry), static_cast<int64_t>((timeLaserOdometry - static_cast<int64_t>(timeLaserOdometry)) * 1e9));;
             cloudMsgTemp.header.frame_id = "/camera_init";
-            pubHistoryKeyFrames.publish(cloudMsgTemp);
+            pubHistoryKeyFrames->publish(cloudMsgTemp);
         }
 
         return true;
@@ -904,14 +918,14 @@ public:
         if (icp.hasConverged() == false || icp.getFitnessScore() > historyKeyframeFitnessScore)
             return;
         // publish corrected cloud
-        if (pubIcpKeyFrames.getNumSubscribers() != 0){
+        if (pubIcpKeyFrames->get_subscription_count() != 0){
             pcl::PointCloud<PointType>::Ptr closed_cloud(new pcl::PointCloud<PointType>());
             pcl::transformPointCloud (*latestSurfKeyFrameCloud, *closed_cloud, icp.getFinalTransformation());
-            sensor_msgs::PointCloud2 cloudMsgTemp;
+            sensor_msgs::msg::PointCloud2 cloudMsgTemp;
             pcl::toROSMsg(*closed_cloud, cloudMsgTemp);
-            cloudMsgTemp.header.stamp = ros::Time().fromSec(timeLaserOdometry);
+            cloudMsgTemp.header.stamp = rclcpp::Time(static_cast<int64_t>(timeLaserOdometry), static_cast<int64_t>((timeLaserOdometry - static_cast<int64_t>(timeLaserOdometry)) * 1e9));
             cloudMsgTemp.header.frame_id = "/camera_init";
-            pubIcpKeyFrames.publish(cloudMsgTemp);
+            pubIcpKeyFrames->publish(cloudMsgTemp);
         }   
         /*
         	get pose constraint
@@ -1522,30 +1536,10 @@ public:
     }
 };
 
-
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "lego_loam");
-
-    ROS_INFO("\033[1;32m---->\033[0m Map Optimization Started.");
-
-    mapOptimization MO;
-
-    std::thread loopthread(&mapOptimization::loopClosureThread, &MO);
-    std::thread visualizeMapThread(&mapOptimization::visualizeGlobalMapThread, &MO);
-
-    ros::Rate rate(200);
-    while (ros::ok())
-    {
-        ros::spinOnce();
-
-        MO.run();
-
-        rate.sleep();
-    }
-
-    loopthread.join();
-    visualizeMapThread.join();
-
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<mapOptimization>());
+    rclcpp::shutdown();
     return 0;
 }

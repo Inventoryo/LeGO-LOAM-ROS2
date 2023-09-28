@@ -50,20 +50,21 @@ add_executable(imageProjection src/imageProjection.cpp)
 ament_target_dependencies(imageProjection ${dependencies})
 target_link_libraries(imageProjection ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 
-# add_executable(featureAssociation src/featureAssociation.cpp)
-# ament_target_dependencies(featureAssociation ${dependencies} )
-# target_link_libraries(featureAssociation  ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
+add_executable(featureAssociation src/featureAssociation.cpp)
+ament_target_dependencies(featureAssociation ${dependencies} )
+target_link_libraries(featureAssociation  ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 
-# add_executable(mapOptmization src/mapOptmization.cpp)
-# ament_target_dependencies(mapOptmization ${dependencies})
-# target_link_libraries(mapOptmization ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} gtsam)
+add_executable(mapOptmization src/mapOptmization.cpp)
+ament_target_dependencies(mapOptmization ${dependencies})
+target_link_libraries(mapOptmization ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} gtsam)
 
-# add_executable(transformFusion src/transformFusion.cpp)
-# ament_target_dependencies(transformFusion ${dependencies})
-# target_link_libraries(transformFusion  ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
+add_executable(transformFusion src/transformFusion.cpp)
+ament_target_dependencies(transformFusion ${dependencies})
+target_link_libraries(transformFusion  ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 
 install(TARGETS
   imageProjection
+  featureAssociation
   DESTINATION lib/${PROJECT_NAME})
 
 ament_export_dependencies(rosidl_default_runtime)

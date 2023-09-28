@@ -81,7 +81,7 @@ private:
     uint16_t *queueIndY;
 
 public:
-    ImageProjection():Node("imageProjection"){
+    ImageProjection():Node("image_projection"){
 
         subLaserCloud = this->create_subscription<sensor_msgs::msg::PointCloud2>(pointCloudTopic, 1, std::bind(&ImageProjection::cloudHandler, this, std::placeholders::_1));
         
@@ -503,9 +503,6 @@ public:
         }
     }
 };
-
-
-
 
 int main(int argc, char** argv){
 

@@ -1,0 +1,22 @@
+<launch>
+    <!--- Sim Time -->
+    <arg name="use_sim_time" default="true" />
+
+    <!--- Run Rviz -->
+    <!-- <node pkg="rviz2" exec="rviz2" name="rviz" output="screen" /> -->
+
+    <!--- TF -->
+    <!-- <node pkg="tf2_ros" exec="static_transform_publisher" name="camera_init_to_map" output="screen">
+        <args 0 0 0 1.570795 0 1.570795 /map /camera_init 10 />
+    </node>
+
+    <node pkg="tf2_ros" exec="static_transform_publisher" name="base_link_to_camera" output="screen">
+        <args 0 0 0 -1.570795 -1.570795 0 /camera /base_link 10 />
+    </node> -->
+
+    <!--- LeGO-LOAM -->    
+    <node pkg="lego_loam" exec="imageProjection" name="imageProjection" output="screen"/>
+    <node pkg="lego_loam" exec="featureAssociation" name="featureAssociation" output="screen"/>
+    <node pkg="lego_loam" exec="mapOptmization" name="mapOptmization" output="screen"/>
+    <node pkg="lego_loam" exec="transformFusion" name="transformFusion" output="screen"/>
+</launch>

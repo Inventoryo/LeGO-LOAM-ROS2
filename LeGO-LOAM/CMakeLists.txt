@@ -65,6 +65,8 @@ target_link_libraries(transformFusion  ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 install(TARGETS
   imageProjection
   featureAssociation
+  mapOptmization
+  transformFusion
   DESTINATION lib/${PROJECT_NAME})
 
 ament_export_dependencies(rosidl_default_runtime)
